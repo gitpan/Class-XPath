@@ -4,7 +4,7 @@ use 5.006;
 use strict;
 use warnings;
 
-our $VERSION = '1.0';
+our $VERSION = '1.1';
 use Carp qw(croak);
 use constant DEBUG => 0;
 
@@ -57,7 +57,7 @@ sub add_methods {
     # translate get_* method names to sub-refs
     for (grep { /^get_/ } keys %args) {
         next if ref $args{$_} and ref $args{$_} eq 'CODE';
-        $args{$_} = eval "sub { shift->$args{$_}() };";
+        $args{$_} = eval "sub { shift->$args{$_}(\@_) };";
         croak("Unable to compile sub for '$_' : $@") if $@;
     }
 
@@ -82,7 +82,6 @@ sub match {
     
     print STDERR "match('$xpath') called.\n" if DEBUG;
 
-
     # / is the root.  This should probably work as part of the
     # algorithm, but it doesn't.
     return $get_root->($self) if $xpath eq '/';
@@ -101,6 +100,10 @@ sub match {
         $xpath = $1;
         # this match starts at the root
         @targets = ($get_root->($self));
+    } elsif ($xpath =~ m!^\.\./(.*)$!) {
+        $xpath = $1;
+        # this match starts at the parent
+        @targets = ($get_parent->($self));
     } else {
         # this match starts here
         @targets = ($self);
@@ -115,6 +118,13 @@ sub match {
         } elsif (/^(\w+)\[(-?\d+)\]$/) {
             # it's an indexed name
             push(@patterns, { name => $1, index => $2 });
+        } elsif (/^(\w+)\[\@(\w+)\s*=\s*"([^"]+)"\]$/ or 
+                 /^(\w+)\[\@(\w+)\s*=\s*'([^']+)'\]$/) {
+            # it's a string attribute match
+            push(@patterns, { name => $1, attr => $2, value => $3 });
+        } elsif (/^(\w+)\[\@(\w+)\s*(=|>|<|<=|>=|!=)\s*(\d+)\]$/) {
+            # it's a numeric attribute match
+            push(@patterns, { name => $1, attr => $2, op => $3, value => $4 });
         } else {
             croak("Bad call to $args->{call_match}: '$xpath' contains unknown token '$_'");
         }
@@ -132,8 +142,8 @@ sub match {
 # applies them to child elements
 sub _do_match {    
     my ($pkg, $self, $args, @patterns) = @_;
-    my ($get_parent, $get_children, $get_name) = 
-      @{$args}{qw(get_parent get_children get_name)};
+    my ($get_parent, $get_children, $get_name, $get_attr_value) = 
+      @{$args}{qw(get_parent get_children get_name get_attr_value)};
     local $_;
 
     print STDERR "_do_match(" . $get_name->($self) . " => " . 
@@ -148,8 +158,25 @@ sub _do_match {
     my @results;
     my @kids = grep { $get_name->($_) eq $pat->{name} } $get_children->($self);
     if (defined $pat->{index}) {
+        # get a child by index
         push @results, $kids[$pat->{index}]
           if (abs($pat->{index}) <= $#kids);
+    } elsif (defined $pat->{attr}) {
+        # default op is 'eq' for string matching
+        my $op = $pat->{op} || 'eq';
+
+        # do attribute matching
+        foreach my $kid (@kids) {
+            my $value = $get_attr_value->($kid, $pat->{attr});
+            push(@results, $kid)
+              if ($op eq 'eq' and $value eq $pat->{value}) or 
+                 ($op eq '='  and $value == $pat->{value}) or 
+                 ($op eq '!=' and $value != $pat->{value}) or 
+                 ($op eq '>'  and $value >  $pat->{value}) or 
+                 ($op eq '<'  and $value <  $pat->{value}) or 
+                 ($op eq '>=' and $value >= $pat->{value}) or 
+                 ($op eq '<=' and $value <= $pat->{value});                 
+        }
     } else {
         push @results, @kids;
     }
@@ -287,8 +314,7 @@ queries are not yet implemented.
 
 Called with a single parameter, the name of the attribute.  Returns
 the value associated with that attribute.  The value returned must be
-alphanumeric (matches /^\w+$/) or C<undef> if no value exists for the
-attribute.
+C<undef> if no value exists for the attribute.
 
 This call is not currently used by Class::XPath because attribute
 queries are not yet implemented.
@@ -418,6 +444,26 @@ Selects a single child by indexing into the children lists.
 Selects the first child of the last parent.  In the real XPath they
 spell this 'parent[last()]/child[0]' but supporting the Perl syntax is
 practically free here.  Eventually I'll support the XPath style too.
+
+=item ../child[2]
+
+Selects the second child from the parent of the current node.
+Currently .. only works at the start of an XPath, mostly because I
+can't imagine using it anywhere else.
+
+=item child[@id=10]
+
+Selects the child node with an 'id' attribute of 10.
+
+=item child[@id>10]
+
+Selects all the child nodes with an 'id' attribute greater than 10.
+Other supported operators are '<', '<=', '>=' and '!='.
+
+=item child[@category="sports"]
+
+Selects the child with an 'category' attribute of "sports".  The value
+must be a quoted string (single or double) and no escaping is allowed.
 
 =back
 

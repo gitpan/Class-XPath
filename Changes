@@ -3,3 +3,7 @@ Revision history for Perl extension Class::XPath.
 1.0   Sat Mar 29 12:00:00 2003
   - First release.
 
+1.1   Mon May 05 12:00:00 2003
+  - Added attibute matchers (page[@number>1], page[@header="Title Page"])
+  - Added parent target (../child[1])
+  - Fixed a bug in the way named methods were handled

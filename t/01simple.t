@@ -8,9 +8,9 @@ BEGIN { use_ok('Simple') };
 my $root = Simple->new_root(name => 'root');
 isa_ok($root, 'Simple');
 can_ok($root, 'match', 'xpath');
-$root->add_kid(name => 'page');
-$root->add_kid(name => 'page');
-$root->add_kid(name => 'page');
+$root->add_kid(name => 'page', foo => 10, bar => 'bif');
+$root->add_kid(name => 'page', foo => 20, bar => 'bof');
+$root->add_kid(name => 'page', foo => 30, bar => 'bongo');
 my @pages = $root->kids;
 for my $page (@pages) {
     isa_ok($page, 'Simple');
@@ -66,3 +66,38 @@ is(($root->match('page'))[0]->match('paragraph'), 10);
 # test global  name query
 is($root->match('//paragraph'), 30);
 
+# test parent context
+foreach my $page (@pages) {
+    my @para = grep { $_->name eq 'paragraph' } $page->kids;
+    for (my $x = 0; $x < $#para; $x++) {
+        is(($para[$x]->match("../paragraph[$x]"))[0], $para[$x]);
+    }
+}
+
+# test string attribute matching
+is($root->match('page[@bar="bif"]'), 1);
+is(($root->match('page[@bar="bif"]'))[0], $pages[0]);
+is($root->match('page[@bar="bof"]'), 1);
+is(($root->match('page[@bar="bof"]'))[0], $pages[1]);
+is($root->match("page[\@bar='bongo']"), 1);
+is(($root->match("page[\@bar='bongo']"))[0], $pages[2]);
+
+# test numeric attribute matching
+is($root->match('page[@foo=10]'), 1);
+is(($root->match('page[@foo=10]'))[0], $pages[0]);
+is($root->match('page[@foo=20]'), 1);
+is(($root->match('page[@foo=20]'))[0], $pages[1]);
+is($root->match('page[@foo=30]'), 1);
+is(($root->match('page[@foo=30]'))[0], $pages[2]);
+
+is($root->match('page[@foo>10]'), 2);
+is(($root->match('page[@foo>10]'))[0], $pages[1]);
+is(($root->match('page[@foo>10]'))[1], $pages[2]);
+
+is($root->match('page[@foo<10]'), 0);
+
+is($root->match('page[@foo!=10]'), 2);
+
+is($root->match('page[@foo<=10]'), 1);
+
+is($root->match('page[@foo>=10]'), 3);
