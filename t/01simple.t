@@ -1,4 +1,4 @@
-use Test::More qw(no_plan);
+use Test::More tests => 218;
 use strict;
 use warnings;
 use lib 't/';
@@ -8,18 +8,26 @@ BEGIN { use_ok('Simple') };
 my $root = Simple->new_root(name => 'root');
 isa_ok($root, 'Simple');
 can_ok($root, 'match', 'xpath');
-$root->add_kid(name => 'page', foo => 10, bar => 'bif');
-$root->add_kid(name => 'page', foo => 20, bar => 'bof');
-$root->add_kid(name => 'page', foo => 30, bar => 'bongo');
+$root->add_kid(
+    name => 'page', foo => 10, bar => 'bif')->add_kid(
+        name => 'kidfoo', data => 10);
+$root->add_kid(
+    name => 'page', foo => 20, bar => 'bof')->add_kid(
+        name => 'kidfoo', data => 20);
+$root->add_kid(
+    name => 'page', foo => 30, bar => 'bongo')->add_kid(
+        name => 'kidfoo', data => 30);
 my @pages = $root->kids;
 for my $page (@pages) {
     isa_ok($page, 'Simple');
     can_ok($page, 'match', 'xpath');
     for (0 .. 9) {
-        $page->add_kid(name => 'paragraph');
+        $page->add_kid(name => 'paragraph', data => "$page->{bar}$_" );
         $page->add_kid(name => 'image') if $_ % 2;
     }
 }
+#use Data::Dumper;
+#warn "tree:",Dumper($root),"\n";
 
 # root's xpath should be /
 is($root->xpath(), '/');
@@ -111,3 +119,44 @@ eq_array([$root->match('/page/@bar')], [qw( bif bof bongo )]);
 # make sure bad use of @foo is caught
 eval { $root->match('/page[0]/@foo/bar'); };
 like($@, qr/Bad call.*contains an attribute selector in the middle of the expression/);
+
+# test string child matching
+is($root->match('page[paragraph="bif0"]'), 1, "Child node string match");
+is(($root->match('page[paragraph="bif0"]'))[0], $pages[0]);
+is($root->match('page[paragraph="bif3"]'), 1, "Child node string match");
+is(($root->match('page[paragraph="bif3"]'))[0], $pages[0]);
+
+is($root->match('page[paragraph="bof0"]'), 1, "Child node string match");
+is(($root->match('page[paragraph="bof0"]'))[0], $pages[1]);
+is($root->match('page[paragraph="bof3"]'), 1, "Child node string match");
+is(($root->match('page[paragraph="bof3"]'))[0], $pages[1]);
+
+is($root->match('page[paragraph="bongo0"]'), 1, "Child node string match");
+is(($root->match('page[paragraph="bongo0"]'))[0], $pages[2]);
+is($root->match('page[paragraph="bongo3"]'), 1, "Child node string match");
+is(($root->match('page[paragraph="bongo3"]'))[0], $pages[2]);
+
+# test numeric child matching
+is($root->match('page[kidfoo=10]'), 1, "Child node = match");
+is(($root->match('page[kidfoo=10]'))[0], $pages[0]);
+is($root->match('page[kidfoo=20]'), 1, "Child node = match");
+is(($root->match('page[kidfoo=20]'))[0], $pages[1]);
+is($root->match('page[kidfoo=30]'), 1, "Child node = match");
+is(($root->match('page[kidfoo=30]'))[0], $pages[2]);
+
+is($root->match('page[kidfoo>10]'), 2, "Child node > match");
+is(($root->match('page[kidfoo>10]'))[0], $pages[1]);
+is(($root->match('page[kidfoo>10]'))[1], $pages[2]);
+
+is($root->match('page[kidfoo<10]'), 0, "Child node < match");
+
+is($root->match('page[kidfoo!=10]'), 2, "Child node != match");
+
+is($root->match('page[kidfoo<=10]'), 1, "Child node <= match");
+
+is($root->match('page[kidfoo>=10]'), 3, "Child node >= match");
+
+is($root->match('page[.="10bif0bif1bif2bif3bif4bif5bif6bif7bif8bif9"]'), 1,
+"Complex child node string match");
+is(($root->match('page[.="10bif0bif1bif2bif3bif4bif5bif6bif7bif8bif9"]'))[0], $pages[0]);
+

@@ -4,7 +4,7 @@ use 5.006;
 use strict;
 use warnings;
 
-our $VERSION = '1.2';
+our $VERSION = '1.3';
 use Carp qw(croak);
 use constant DEBUG => 0;
 
@@ -16,7 +16,6 @@ sub import {
     my $pkg = shift;
     return unless @_;
     my $target = (caller())[0];
-
     # hand off to add_methods
     $pkg->add_methods(@_, target => $target, from_import => 1);
 }
@@ -134,6 +133,13 @@ sub match {
         } elsif (/^(\w+)\[\@(\w+)\s*(=|>|<|<=|>=|!=)\s*(\d+)\]$/) {
             # it's a numeric attribute match
             push(@patterns, { name => $1, attr => $2, op => $3, value => $4 });
+        } elsif (/^(\w+)\[(\w+|\.)\s*=\s*"([^"]+)"\]$/ or 
+                 /^(\w+)\[(\w+|\.)\s*=\s*'([^']+)'\]$/) {
+            # it's a string child match
+            push(@patterns, { name => $1, child => $2, value => $3 });
+        } elsif (/^(\w+)\[(\w+|\.)\s*(=|>|<|<=|>=|!=)\s*(\d+)\]$/) {
+            # it's a numeric child match
+            push(@patterns, { name => $1, child => $2, op => $3, value => $4 });
         } elsif (/^\@(\w+)$/) {
             # it's an attribute name
             push(@patterns, { attr => $1 });
@@ -141,7 +147,6 @@ sub match {
             # it better be last
             croak("Bad call to $args->{call_match}: '$xpath' contains an attribute selector in the middle of the expression.")
               if $count != @parts;
-                
         } else {
             # unrecognized token
             croak("Bad call to $args->{call_match}: '$xpath' contains unknown token '$_'");
@@ -161,8 +166,8 @@ sub match {
 # applies them to child elements
 sub _do_match {    
     my ($pkg, $self, $args, @patterns) = @_;
-    my ($get_parent, $get_children, $get_name, $get_attr_value, $get_attr_names) = 
-      @{$args}{qw(get_parent get_children get_name get_attr_value get_attr_names)};
+    my ($get_parent, $get_children, $get_name, $get_attr_value, $get_attr_names, $get_content) = 
+      @{$args}{qw(get_parent get_children get_name get_attr_value get_attr_names get_content)};
     local $_;
 
     print STDERR "_do_match(" . $get_name->($self) . " => " . 
@@ -205,7 +210,35 @@ sub _do_match {
         }
         else {
             my $attr = $pat->{attr};
-            push(@results, $get_attr_value->($self, $attr)) if grep { $_ eq $attr } $get_attr_names->($self);
+            push(@results, $get_attr_value->($self, $attr))
+            if grep { $_ eq $attr } $get_attr_names->($self);
+        }
+    } elsif (defined $pat->{child}) {
+        croak("Can't process child pattern without name")
+        unless defined $pat->{name};
+        # default op is 'eq' for string matching
+        my $op = $pat->{op} || 'eq';
+        # do attribute matching
+        foreach my $kid (@kids) {
+            foreach ( 
+                $pat->{child} eq "." ? $kid
+                : grep {$get_name->($_) eq $pat->{child}} $get_children->($kid)
+            ) {
+                my $value;
+                foreach_node { 
+                    my $txt = $get_content->($_);
+                    $value .= $txt if defined $txt;
+                } $_, $get_children;
+                next unless defined $value;
+                push(@results, $kid)
+                  if ($op eq 'eq' and $value eq $pat->{value}) or 
+                     ($op eq '='  and $value == $pat->{value}) or 
+                     ($op eq '!=' and $value != $pat->{value}) or 
+                     ($op eq '>'  and $value >  $pat->{value}) or 
+                     ($op eq '<'  and $value <  $pat->{value}) or 
+                     ($op eq '>=' and $value >= $pat->{value}) or 
+                     ($op eq '<=' and $value <= $pat->{value});
+            }
         }
     } else {
         push @results, @kids;
@@ -342,9 +375,6 @@ be alphanumeric (matches /^\w+$/).
 Called with a single parameter, the name of the attribute.  Returns
 the value associated with that attribute.  The value returned must be
 C<undef> if no value exists for the attribute.
-
-This call is not currently used by Class::XPath because attribute
-queries are not yet implemented.
 
 =item get_content (required)
 
@@ -499,6 +529,20 @@ Other supported operators are '<', '<=', '>=' and '!='.
 Selects the child with an 'category' attribute of "sports".  The value
 must be a quoted string (single or double) and no escaping is allowed.
 
+=item child[title="Hello World"]
+
+Selects the child with a 'title' child element whose content is "Hello World".
+The value must be a quoted string (single or double) and no escaping is allowed.
+e.g.
+
+ <child>
+   <title>Hello World</title>
+ </child>
+
+=item //title[.="Hello World"]
+
+Selects all 'title' elements whose content is "Hello World".
+
 =item child/@attr
 
 Returns the list of values for all attributes "attr" within each child.
@@ -549,6 +593,7 @@ the W3C for supporting them in their efforts.
 The following people have sent me patches and/or suggestions:
 
   Tim Peoples
+  Mark Addison
 
 =head1 COPYRIGHT AND LICENSE
 

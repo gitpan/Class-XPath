@@ -24,7 +24,8 @@ sub kids { @{shift->{kids}} }
 
 sub new_root { my $pkg = shift; bless({kids => [], @_}, $pkg); }
 sub add_kid { my $self = shift; 
-              push(@{$self->{kids}}, bless({kids => [], @_}, ref $self));
-              $self->{kids}[-1]->{parent} = $self; }
+              push(@{$self->{kids}}, 
+                  bless({kids => [], @_, parent => $self }, ref $self));
+              $self->{kids}[-1]; }
                  
 1;
