@@ -7,3 +7,7 @@ Revision history for Perl extension Class::XPath.
   - Added attibute matchers (page[@number>1], page[@header="Title Page"])
   - Added parent target (../child[1])
   - Fixed a bug in the way named methods were handled
+
+1.2   Tue Aug 19 12:00:00 2003
+  - Added attribute selectors (/page/@title) (Tim Peoples)
+  - Added self matcher (./page) (Tim Peoples)

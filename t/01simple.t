@@ -101,3 +101,13 @@ is($root->match('page[@foo!=10]'), 2);
 is($root->match('page[@foo<=10]'), 1);
 
 is($root->match('page[@foo>=10]'), 3);
+
+# test attribute value retrieval
+is($root->match('/page[0]/@foo'), 1);
+eq_array([$root->match('/page/@foo')], [qw( 10 20 30 )]);
+is(($root->match('/page[-1]/@bar'))[0], 'bongo');
+eq_array([$root->match('/page/@bar')], [qw( bif bof bongo )]);
+
+# make sure bad use of @foo is caught
+eval { $root->match('/page[0]/@foo/bar'); };
+like($@, qr/Bad call.*contains an attribute selector in the middle of the expression/);

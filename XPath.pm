@@ -4,7 +4,7 @@ use 5.006;
 use strict;
 use warnings;
 
-our $VERSION = '1.1';
+our $VERSION = '1.2';
 use Carp qw(croak);
 use constant DEBUG => 0;
 
@@ -86,6 +86,10 @@ sub match {
     # algorithm, but it doesn't.
     return $get_root->($self) if $xpath eq '/';
         
+    # . is self.  This should also work as part of the algorithm,
+    # but it doesn't.
+    return $self if $xpath eq '.';
+
     # break up an incoming xpath into a set of @patterns to match
     # against a list of @target elements
     my (@patterns, @targets);    
@@ -104,6 +108,9 @@ sub match {
         $xpath = $1;
         # this match starts at the parent
         @targets = ($get_parent->($self));
+    } elsif ($xpath =~ m!^\./(.*)$!) {
+        $xpath = $1;
+        @targets = ($self);
     } else {
         # this match starts here
         @targets = ($self);
@@ -111,7 +118,9 @@ sub match {
         
     # pattern breakdown
     my @parts = split('/', $xpath);
+    my $count = 0;
     for (@parts) {
+        $count++;
         if (/^\w+$/) {
             # it's a straight name match
             push(@patterns, { name => $_ });
@@ -125,10 +134,20 @@ sub match {
         } elsif (/^(\w+)\[\@(\w+)\s*(=|>|<|<=|>=|!=)\s*(\d+)\]$/) {
             # it's a numeric attribute match
             push(@patterns, { name => $1, attr => $2, op => $3, value => $4 });
+        } elsif (/^\@(\w+)$/) {
+            # it's an attribute name
+            push(@patterns, { attr => $1 });
+
+            # it better be last
+            croak("Bad call to $args->{call_match}: '$xpath' contains an attribute selector in the middle of the expression.")
+              if $count != @parts;
+                
         } else {
+            # unrecognized token
             croak("Bad call to $args->{call_match}: '$xpath' contains unknown token '$_'");
         }
     }
+
     croak("Bad call to $args->{call_match}: '$xpath' contains no search tokens.")
       unless @patterns;
     
@@ -142,8 +161,8 @@ sub match {
 # applies them to child elements
 sub _do_match {    
     my ($pkg, $self, $args, @patterns) = @_;
-    my ($get_parent, $get_children, $get_name, $get_attr_value) = 
-      @{$args}{qw(get_parent get_children get_name get_attr_value)};
+    my ($get_parent, $get_children, $get_name, $get_attr_value, $get_attr_names) = 
+      @{$args}{qw(get_parent get_children get_name get_attr_value get_attr_names)};
     local $_;
 
     print STDERR "_do_match(" . $get_name->($self) . " => " . 
@@ -156,12 +175,18 @@ sub _do_match {
 
     # find matches and put in @results
     my @results;
-    my @kids = grep { $get_name->($_) eq $pat->{name} } $get_children->($self);
+    my @kids;
+
+    { no warnings 'uninitialized';
+        @kids = grep { $get_name->($_) eq $pat->{name} } $get_children->($self);
+    }
+
     if (defined $pat->{index}) {
         # get a child by index
         push @results, $kids[$pat->{index}]
           if (abs($pat->{index}) <= $#kids);
     } elsif (defined $pat->{attr}) {
+        if (defined $pat->{name}) {
         # default op is 'eq' for string matching
         my $op = $pat->{op} || 'eq';
 
@@ -176,6 +201,11 @@ sub _do_match {
                  ($op eq '<'  and $value <  $pat->{value}) or 
                  ($op eq '>=' and $value >= $pat->{value}) or 
                  ($op eq '<=' and $value <= $pat->{value});                 
+        }
+        }
+        else {
+            my $attr = $pat->{attr};
+            push(@results, $get_attr_value->($self, $attr)) if grep { $_ eq $attr } $get_attr_names->($self);
         }
     } else {
         push @results, @kids;
@@ -307,9 +337,6 @@ Returns a list of child nodes, in order.
 Returns a list of available attribute names.  The values returned must
 be alphanumeric (matches /^\w+$/).
 
-This call is not currently used by Class::XPath because attribute
-queries are not yet implemented.
-
 =item get_attr_value (required)
 
 Called with a single parameter, the name of the attribute.  Returns
@@ -390,9 +417,10 @@ This module generates two public methods for your class:
 
 This method performs an XPath match against the tree to which this
 node belongs.  See the SYNTAX documentation for the range of supported
-expressions.  The return value is a list of node objects, or an empty
-list if no matches could be found.  If your XPath expression cannot be
-parsed then the method will die.
+expressions.  The return value is either a list of node objects, a list
+of values (when retrieving specific attributes) or an empty list if no
+matches could be found.  If your XPath expression cannot be parsed then
+the method will die.
 
 You can change the name of this method with the 'call_match' option
 described above.
@@ -417,7 +445,13 @@ list of the type of expressions it knows about:
 
 =over
 
+=item .
+
+Selects and returns the current node.
+
 =item name
+
+=item ./name
 
 Selects a list of nodes called 'name' in the tree below the current
 node.
@@ -465,6 +499,14 @@ Other supported operators are '<', '<=', '>=' and '!='.
 Selects the child with an 'category' attribute of "sports".  The value
 must be a quoted string (single or double) and no escaping is allowed.
 
+=item child/@attr
+
+Returns the list of values for all attributes "attr" within each child.
+
+=item //@attr
+
+Returns the list of values for all attributes "attr" within each node.
+
 =back
 
 B<NOTE:> this module has no support for Unicode.  If this is a problem
@@ -503,6 +545,10 @@ a special mode for use during development?
 
 I would like to thank the creators of XPath for their fine work and
 the W3C for supporting them in their efforts.
+
+The following people have sent me patches and/or suggestions:
+
+  Tim Peoples
 
 =head1 COPYRIGHT AND LICENSE
 

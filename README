@@ -1,4 +1,4 @@
-Class::XPath 1.0
+Class::XPath 1.2
 
 This module adds XPath-style matching to your object trees. This means
 that you can find nodes using an XPath-esque query with "match()" from
@@ -12,8 +12,9 @@ support.
 
 CHANGES
 
-  - First release.
+   - Added attribute selectors (/page/@title) (Tim Peoples)
 
+   - Added self matcher (./page) (Tim Peoples)
 
 INSTALLATION
 
