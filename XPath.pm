@@ -4,9 +4,12 @@ use 5.006;
 use strict;
 use warnings;
 
-our $VERSION = '1.3';
+our $VERSION = '1.4';
 use Carp qw(croak);
 use constant DEBUG => 0;
+
+# regex fragment for names in XPath expressions
+our $NAME = qr/[\w:]+/;
 
 # declare prototypes
 sub foreach_node (&@);
@@ -120,27 +123,27 @@ sub match {
     my $count = 0;
     for (@parts) {
         $count++;
-        if (/^\w+$/) {
+        if (/^$NAME$/) {
             # it's a straight name match
             push(@patterns, { name => $_ });
-        } elsif (/^(\w+)\[(-?\d+)\]$/) {
+        } elsif (/^($NAME)\[(-?\d+)\]$/o) {
             # it's an indexed name
             push(@patterns, { name => $1, index => $2 });
-        } elsif (/^(\w+)\[\@(\w+)\s*=\s*"([^"]+)"\]$/ or 
-                 /^(\w+)\[\@(\w+)\s*=\s*'([^']+)'\]$/) {
+        } elsif (/^($NAME)\[\@($NAME)\s*=\s*"([^"]+)"\]$/o or 
+                 /^($NAME)\[\@($NAME)\s*=\s*'([^']+)'\]$/o) {
             # it's a string attribute match
             push(@patterns, { name => $1, attr => $2, value => $3 });
-        } elsif (/^(\w+)\[\@(\w+)\s*(=|>|<|<=|>=|!=)\s*(\d+)\]$/) {
+        } elsif (/^($NAME)\[\@($NAME)\s*(=|>|<|<=|>=|!=)\s*(\d+)\]$/o) {
             # it's a numeric attribute match
             push(@patterns, { name => $1, attr => $2, op => $3, value => $4 });
-        } elsif (/^(\w+)\[(\w+|\.)\s*=\s*"([^"]+)"\]$/ or 
-                 /^(\w+)\[(\w+|\.)\s*=\s*'([^']+)'\]$/) {
+        } elsif (/^($NAME)\[($NAME|\.)\s*=\s*"([^"]+)"\]$/o or 
+                 /^($NAME)\[($NAME|\.)\s*=\s*'([^']+)'\]$/o) {
             # it's a string child match
             push(@patterns, { name => $1, child => $2, value => $3 });
-        } elsif (/^(\w+)\[(\w+|\.)\s*(=|>|<|<=|>=|!=)\s*(\d+)\]$/) {
+        } elsif (/^($NAME)\[($NAME|\.)\s*(=|>|<|<=|>=|!=)\s*(\d+)\]$/) {
             # it's a numeric child match
             push(@patterns, { name => $1, child => $2, op => $3, value => $4 });
-        } elsif (/^\@(\w+)$/) {
+        } elsif (/^\@($NAME)$/) {
             # it's an attribute name
             push(@patterns, { attr => $1 });
 
@@ -353,8 +356,8 @@ method names, or subroutine references.  They are:
 =item get_name (required)
 
 Returns the name of this node.  This will be used as the element name
-when evaluating an XPath match.  The value returned must be
-alphanumeric (matches /^\w+$/).
+when evaluating an XPath match.  The value returned must matches
+/^[\w:]+$/.
 
 =item get_parent (required)
 
@@ -368,7 +371,7 @@ Returns a list of child nodes, in order.
 =item get_attr_names (required)
 
 Returns a list of available attribute names.  The values returned must
-be alphanumeric (matches /^\w+$/).
+match /^[\w:]+$/).
 
 =item get_attr_value (required)
 
@@ -594,6 +597,7 @@ The following people have sent me patches and/or suggestions:
 
   Tim Peoples
   Mark Addison
+  Timothy Appnel
 
 =head1 COPYRIGHT AND LICENSE
 

@@ -9,13 +9,13 @@ my $root = Simple->new_root(name => 'root');
 isa_ok($root, 'Simple');
 can_ok($root, 'match', 'xpath');
 $root->add_kid(
-    name => 'page', foo => 10, bar => 'bif')->add_kid(
+    name => 'some:page', foo => 10, bar => 'bif')->add_kid(
         name => 'kidfoo', data => 10);
 $root->add_kid(
-    name => 'page', foo => 20, bar => 'bof')->add_kid(
+    name => 'some:page', foo => 20, bar => 'bof')->add_kid(
         name => 'kidfoo', data => 20);
 $root->add_kid(
-    name => 'page', foo => 30, bar => 'bongo')->add_kid(
+    name => 'some:page', foo => 30, bar => 'bongo')->add_kid(
         name => 'kidfoo', data => 30);
 my @pages = $root->kids;
 for my $page (@pages) {
@@ -33,9 +33,9 @@ for my $page (@pages) {
 is($root->xpath(), '/');
 
 # page xpath tests
-is($pages[0]->xpath, '/page[0]');
-is($pages[1]->xpath, '/page[1]');
-is($pages[2]->xpath, '/page[2]');
+is($pages[0]->xpath, '/some:page[0]');
+is($pages[1]->xpath, '/some:page[1]');
+is($pages[2]->xpath, '/some:page[2]');
 
 # paragraph xpath tests
 foreach my $page (@pages) {
@@ -68,8 +68,8 @@ foreach my $page (@pages) {
 }
 
 # test local name query
-is($root->match('page'), 3);
-is(($root->match('page'))[0]->match('paragraph'), 10);
+is($root->match('some:page'), 3);
+is(($root->match('some:page'))[0]->match('paragraph'), 10);
 
 # test global  name query
 is($root->match('//paragraph'), 30);
@@ -83,80 +83,80 @@ foreach my $page (@pages) {
 }
 
 # test string attribute matching
-is($root->match('page[@bar="bif"]'), 1);
-is(($root->match('page[@bar="bif"]'))[0], $pages[0]);
-is($root->match('page[@bar="bof"]'), 1);
-is(($root->match('page[@bar="bof"]'))[0], $pages[1]);
-is($root->match("page[\@bar='bongo']"), 1);
-is(($root->match("page[\@bar='bongo']"))[0], $pages[2]);
+is($root->match('some:page[@bar="bif"]'), 1);
+is(($root->match('some:page[@bar="bif"]'))[0], $pages[0]);
+is($root->match('some:page[@bar="bof"]'), 1);
+is(($root->match('some:page[@bar="bof"]'))[0], $pages[1]);
+is($root->match("some:page[\@bar='bongo']"), 1);
+is(($root->match("some:page[\@bar='bongo']"))[0], $pages[2]);
 
 # test numeric attribute matching
-is($root->match('page[@foo=10]'), 1);
-is(($root->match('page[@foo=10]'))[0], $pages[0]);
-is($root->match('page[@foo=20]'), 1);
-is(($root->match('page[@foo=20]'))[0], $pages[1]);
-is($root->match('page[@foo=30]'), 1);
-is(($root->match('page[@foo=30]'))[0], $pages[2]);
+is($root->match('some:page[@foo=10]'), 1);
+is(($root->match('some:page[@foo=10]'))[0], $pages[0]);
+is($root->match('some:page[@foo=20]'), 1);
+is(($root->match('some:page[@foo=20]'))[0], $pages[1]);
+is($root->match('some:page[@foo=30]'), 1);
+is(($root->match('some:page[@foo=30]'))[0], $pages[2]);
 
-is($root->match('page[@foo>10]'), 2);
-is(($root->match('page[@foo>10]'))[0], $pages[1]);
-is(($root->match('page[@foo>10]'))[1], $pages[2]);
+is($root->match('some:page[@foo>10]'), 2);
+is(($root->match('some:page[@foo>10]'))[0], $pages[1]);
+is(($root->match('some:page[@foo>10]'))[1], $pages[2]);
 
-is($root->match('page[@foo<10]'), 0);
+is($root->match('some:page[@foo<10]'), 0);
 
-is($root->match('page[@foo!=10]'), 2);
+is($root->match('some:page[@foo!=10]'), 2);
 
-is($root->match('page[@foo<=10]'), 1);
+is($root->match('some:page[@foo<=10]'), 1);
 
-is($root->match('page[@foo>=10]'), 3);
+is($root->match('some:page[@foo>=10]'), 3);
 
 # test attribute value retrieval
-is($root->match('/page[0]/@foo'), 1);
-eq_array([$root->match('/page/@foo')], [qw( 10 20 30 )]);
-is(($root->match('/page[-1]/@bar'))[0], 'bongo');
-eq_array([$root->match('/page/@bar')], [qw( bif bof bongo )]);
+is($root->match('/some:page[0]/@foo'), 1);
+eq_array([$root->match('/some:page/@foo')], [qw( 10 20 30 )]);
+is(($root->match('/some:page[-1]/@bar'))[0], 'bongo');
+eq_array([$root->match('/some:page/@bar')], [qw( bif bof bongo )]);
 
 # make sure bad use of @foo is caught
-eval { $root->match('/page[0]/@foo/bar'); };
+eval { $root->match('/some:page[0]/@foo/bar'); };
 like($@, qr/Bad call.*contains an attribute selector in the middle of the expression/);
 
 # test string child matching
-is($root->match('page[paragraph="bif0"]'), 1, "Child node string match");
-is(($root->match('page[paragraph="bif0"]'))[0], $pages[0]);
-is($root->match('page[paragraph="bif3"]'), 1, "Child node string match");
-is(($root->match('page[paragraph="bif3"]'))[0], $pages[0]);
+is($root->match('some:page[paragraph="bif0"]'), 1, "Child node string match");
+is(($root->match('some:page[paragraph="bif0"]'))[0], $pages[0]);
+is($root->match('some:page[paragraph="bif3"]'), 1, "Child node string match");
+is(($root->match('some:page[paragraph="bif3"]'))[0], $pages[0]);
 
-is($root->match('page[paragraph="bof0"]'), 1, "Child node string match");
-is(($root->match('page[paragraph="bof0"]'))[0], $pages[1]);
-is($root->match('page[paragraph="bof3"]'), 1, "Child node string match");
-is(($root->match('page[paragraph="bof3"]'))[0], $pages[1]);
+is($root->match('some:page[paragraph="bof0"]'), 1, "Child node string match");
+is(($root->match('some:page[paragraph="bof0"]'))[0], $pages[1]);
+is($root->match('some:page[paragraph="bof3"]'), 1, "Child node string match");
+is(($root->match('some:page[paragraph="bof3"]'))[0], $pages[1]);
 
-is($root->match('page[paragraph="bongo0"]'), 1, "Child node string match");
-is(($root->match('page[paragraph="bongo0"]'))[0], $pages[2]);
-is($root->match('page[paragraph="bongo3"]'), 1, "Child node string match");
-is(($root->match('page[paragraph="bongo3"]'))[0], $pages[2]);
+is($root->match('some:page[paragraph="bongo0"]'), 1, "Child node string match");
+is(($root->match('some:page[paragraph="bongo0"]'))[0], $pages[2]);
+is($root->match('some:page[paragraph="bongo3"]'), 1, "Child node string match");
+is(($root->match('some:page[paragraph="bongo3"]'))[0], $pages[2]);
 
 # test numeric child matching
-is($root->match('page[kidfoo=10]'), 1, "Child node = match");
-is(($root->match('page[kidfoo=10]'))[0], $pages[0]);
-is($root->match('page[kidfoo=20]'), 1, "Child node = match");
-is(($root->match('page[kidfoo=20]'))[0], $pages[1]);
-is($root->match('page[kidfoo=30]'), 1, "Child node = match");
-is(($root->match('page[kidfoo=30]'))[0], $pages[2]);
+is($root->match('some:page[kidfoo=10]'), 1, "Child node = match");
+is(($root->match('some:page[kidfoo=10]'))[0], $pages[0]);
+is($root->match('some:page[kidfoo=20]'), 1, "Child node = match");
+is(($root->match('some:page[kidfoo=20]'))[0], $pages[1]);
+is($root->match('some:page[kidfoo=30]'), 1, "Child node = match");
+is(($root->match('some:page[kidfoo=30]'))[0], $pages[2]);
 
-is($root->match('page[kidfoo>10]'), 2, "Child node > match");
-is(($root->match('page[kidfoo>10]'))[0], $pages[1]);
-is(($root->match('page[kidfoo>10]'))[1], $pages[2]);
+is($root->match('some:page[kidfoo>10]'), 2, "Child node > match");
+is(($root->match('some:page[kidfoo>10]'))[0], $pages[1]);
+is(($root->match('some:page[kidfoo>10]'))[1], $pages[2]);
 
-is($root->match('page[kidfoo<10]'), 0, "Child node < match");
+is($root->match('some:page[kidfoo<10]'), 0, "Child node < match");
 
-is($root->match('page[kidfoo!=10]'), 2, "Child node != match");
+is($root->match('some:page[kidfoo!=10]'), 2, "Child node != match");
 
-is($root->match('page[kidfoo<=10]'), 1, "Child node <= match");
+is($root->match('some:page[kidfoo<=10]'), 1, "Child node <= match");
 
-is($root->match('page[kidfoo>=10]'), 3, "Child node >= match");
+is($root->match('some:page[kidfoo>=10]'), 3, "Child node >= match");
 
-is($root->match('page[.="10bif0bif1bif2bif3bif4bif5bif6bif7bif8bif9"]'), 1,
+is($root->match('some:page[.="10bif0bif1bif2bif3bif4bif5bif6bif7bif8bif9"]'), 1,
 "Complex child node string match");
-is(($root->match('page[.="10bif0bif1bif2bif3bif4bif5bif6bif7bif8bif9"]'))[0], $pages[0]);
+is(($root->match('some:page[.="10bif0bif1bif2bif3bif4bif5bif6bif7bif8bif9"]'))[0], $pages[0]);
 
